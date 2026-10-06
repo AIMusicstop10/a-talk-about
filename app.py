@@ -93,8 +93,8 @@ if user_input := st.chat_input(f"Let's talk about it, {user_name}..."):
 
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash"
-            system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. Your name given by the user is {ai_name}."
+            model_name="gemini-2.5-flash",
+            system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. You are co-hosting/talking as {ai_name}."
         )
 
         formatted_contents = [{"role": m["role"], "parts": [m["content"]]} for m in st.session_state.rooms[active_room]]
