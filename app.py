@@ -93,7 +93,7 @@ if user_input := st.chat_input(f"Let's talk about it, {user_name}..."):
 
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-3.8-flash",
             system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. You are co-hosting/talking as {ai_name}."
         )
 
