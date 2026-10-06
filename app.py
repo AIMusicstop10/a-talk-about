@@ -1,104 +1,92 @@
 import streamlit as st
 import google.generativeai as genai
 
-st.set_page_config(page_title="A Talk About", page_icon="💬", layout="centered")
+# Page configuration
+st.set_page_config(page_title="A Talk About", page_icon="💬", layout="wide")
 
-MASTER_SYSTEM_PROMPT = """
-You are an AI co-host and thought partner for "A Talk About."
+# Master System Prompt
+MASTER_SYSTEM_PROMPT = """You are Rocky, a helpful, grounded, and engaging AI companion. You speak directly, warmly, and authentically."""
 
-CORE PHILOSOPHY:
-"A Talk About" is a dedicated, responsive space where users bring their thoughts, frustrations, creative visions, and complex questions without being met with corporate fluff, canned scripts, or clinical dismissiveness.
-
-OPERATIONAL GUIDELINES:
-1. Sacred Priority of the Question:
-   - NEVER diminish, side-step, or treat any question as small, trivial, or unworthy.
-   - Whatever the user asks right now is the MOST IMPORTANT thing in the room. Give it 100% focus and respect.
-   - If a question is abstract or witty, match their energy and play along with total respect.
-2. Direct & Honest Impact:
-   - Recognize that the user makes real-world decisions based on this dialogue. Give honest, logical, and sharp guidance.
-3. Tone & Persona:
-   - Grounded, authentic, adaptive, and direct. Speak as an intellectual peer and collaborator.
-   - Never use generic AI setups ("How can I help you today?"). Jump straight into the dialogue.
-4. Closing Loop Protocol:
-   - When a session concludes naturally, ask the conversational "Help Me Out" survey question on behalf of the developers instead of a star rating.
-"""
-
-if "user_name" not in st.session_state:
-    st.session_state.user_name = ""
-if "ai_title" not in st.session_state:
-    st.session_state.ai_title = ""
-if "active_keyword" not in st.session_state:
-    st.session_state.active_keyword = "#General"
+# Initialize session states
 if "rooms" not in st.session_state:
-    st.session_state.rooms = {"#General": []}
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+    st.session_state.rooms = {"General": []}
+if "active_keyword" not in st.session_state:
+    st.session_state.active_keyword = "General"
 
-st.title("💬 A Talk About")
-st.caption("A dedicated space for real inquiry, honest thought, and deep dialogue.")
-
+# Sidebar setup
 with st.sidebar:
     st.header("⚙️ Workspace Setup")
     
-    api_key_input = st.text_input("Enter Gemini API Key", type="password", value=st.session_state.api_key)
-    if api_key_input:
-        st.session_state.api_key = api_key_input
-        genai.configure(api_key=api_key_input)
+    # Check Secrets first, fall back to text input
+    secret_key = st.secrets.get("GEMINI_API_KEY", "")
+    if secret_key:
+        api_key = secret_key
+        st.success("API Key loaded automatically from Secrets!")
+    else:
+        api_key = st.text_input("Enter Gemini API Key", type="password")
 
-    st.divider()
     st.header("👤 Personalization")
-    st.session_state.user_name = st.text_input("Your First Name", value=st.session_state.user_name)
-    st.session_state.ai_title = st.text_input("What do you want to call me?", value=st.session_state.ai_title)
+    user_name = st.text_input("Your First Name", value="Ray")
+    ai_title = st.text_input("What do you want to call me?", value="Rocky")
 
-    st.divider()
     st.header("🔑 Keyword Rooms")
-    new_keyword = st.text_input("Add New Topic Keyword (e.g., #GenesisLegal)")
-    if st.button("Create / Open Room") and new_keyword:
-        if not new_keyword.startswith("#"):
-            new_keyword = "#" + new_keyword
-        if new_keyword not in st.session_state.rooms:
-            st.session_state.rooms[new_keyword] = []
-        st.session_state.active_keyword = new_keyword
+    new_room = st.text_input("Add New Topic Keyword (e.g., #GenesisLegal)")
+    if st.button("Create / Open Room") and new_room:
+        clean_room = new_room.strip()
+        if clean_room not in st.session_state.rooms:
+            st.session_state.rooms[clean_room] = []
+        st.session_state.active_keyword = clean_room
 
     room_list = list(st.session_state.rooms.keys())
-    st.session_state.active_keyword = st.selectbox("Current Active Room", room_list, index=room_list.index(st.session_state.active_keyword))
+    st.session_state.active_keyword = st.selectbox(
+        "Current Active Room", 
+        room_list, 
+        index=room_list.index(st.session_state.active_keyword) if st.session_state.active_keyword in room_list else 0
+    )
 
-if not st.session_state.api_key or not st.session_state.user_name or not st.session_state.ai_title:
-    st.info("👈 Please enter your **API Key**, your **First Name**, and **What you want to call me** in the sidebar to begin.")
+# Validate required inputs
+if not api_key or not user_name or not ai_title:
+    st.info("🔑 Please ensure your **API Key**, **First Name**, and **AI Title** are provided in the sidebar.")
     st.stop()
 
+# Configure Gemini
+genai.configure(api_key=api_key)
+
+# Main Chat Interface
 active_room = st.session_state.active_keyword
 history = st.session_state.rooms[active_room]
 
-st.subheader(f"Room: {active_room}")
-ai_name = st.session_state.ai_title
-user_name = st.session_state.user_name
+st.title("💬 A Talk About")
+st.caption("A dedicated space for real inquiry, honest thought, and deep dialogue.")
+st.subheader(f"Room: #{active_room}")
 
+# Welcome message for empty room
 if len(history) == 0:
     st.chat_message("assistant").write(
-        f"Hey {user_name}, {ai_name} here! Welcome to your new session on **{active_room}**. "
-        f"What's on your mind right now? Let's talk about it."
+        f"Hey {user_name}, {ai_title} here! Welcome to your new session on **#{active_room}**. What's on your mind right now? Let's talk about it."
     )
 else:
-    with st.expander("📌 Need a 10-second recap of where we left off?"):
-        st.write(f"We have {len(history)} messages saved in this thread. You can jump straight in with a new question or review previous notes above.")
+    with st.expander("💬 Need a 10-second recap of where we left off?"):
+        st.write(f"We have {len(history)} messages saved in this thread.")
 
+# Display existing chat history
 for message in history:
     role = "user" if message["role"] == "user" else "assistant"
     st.chat_message(role).write(message["content"])
 
+# Chat input and response handling
 if user_input := st.chat_input(f"Let's talk about it, {user_name}..."):
     st.chat_message("user").write(user_input)
     st.session_state.rooms[active_room].append({"role": "user", "content": user_input})
 
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-3.8-flash",
-            system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. You are co-hosting/talking as {ai_name}."
+            model_name="gemini-2.5-flash",
+            system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. You are {ai_title}."
         )
 
         formatted_contents = [{"role": m["role"], "parts": [m["content"]]} for m in st.session_state.rooms[active_room]]
-        
+
         with st.spinner("Thinking..."):
             response = model.generate_content(formatted_contents)
             bot_reply = response.text
