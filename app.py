@@ -64,8 +64,8 @@ if api_key:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Model configuration
-    model_name = "gemini-1.5-flash"
+    # Updated active model supporting audio & text
+    model_name = "gemini-2.0-flash"
 
     st.markdown("---")
     st.markdown(f"### 💬 Talk with {ai_title}")
