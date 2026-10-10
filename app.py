@@ -65,7 +65,7 @@ if api_key:
             st.markdown(msg["content"])
 
     # Updated active model supporting audio & text
-    model_name = "gemini-2.0-flash"
+    model_name = "gemini-3.8-flash"
 
     st.markdown("---")
     st.markdown(f"### 💬 Talk with {ai_title}")
