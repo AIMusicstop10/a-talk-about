@@ -1,11 +1,15 @@
 import streamlit as st
 import google.generativeai as genai
 
-# Page configuration
-st.set_page_config(page_title="A Talk About", page_icon="💬", layout="wide")
+# Page Configuration
+st.set_page_config(
+    page_title="A Talk About",
+    page_icon="🎙️",
+    layout="wide"
+)
 
-# Master System Prompt
-MASTER_SYSTEM_PROMPT = """You are Rocky, a helpful, grounded, and engaging AI companion. You speak directly, warmly, and authentically."""
+st.title("🎙️ A Talk About")
+st.markdown("A dedicated space for real inquiry, honest thought, and deep verbal dialogue.")
 
 # Initialize session states
 if "rooms" not in st.session_state:
@@ -16,7 +20,7 @@ if "active_keyword" not in st.session_state:
 # Sidebar setup
 with st.sidebar:
     st.header("⚙️ Workspace Setup")
-    
+
     # Check Secrets first, fall back to text input
     secret_key = st.secrets.get("GEMINI_API_KEY", "")
     if secret_key:
@@ -38,61 +42,71 @@ with st.sidebar:
         st.session_state.active_keyword = clean_room
 
     room_list = list(st.session_state.rooms.keys())
-    st.session_state.active_keyword = st.selectbox(
-        "Current Active Room", 
-        room_list, 
-        index=room_list.index(st.session_state.active_keyword) if st.session_state.active_keyword in room_list else 0
-    )
+    selected_room = st.selectbox("Current Active Room", room_list, index=room_list.index(st.session_state.active_keyword))
+    st.session_state.active_keyword = selected_room
 
-# Validate required inputs
-if not api_key or not user_name or not ai_title:
-    st.info("🔑 Please ensure your **API Key**, **First Name**, and **AI Title** are provided in the sidebar.")
-    st.stop()
-
-# Configure Gemini
-genai.configure(api_key=api_key)
-
-# Main Chat Interface
 active_room = st.session_state.active_keyword
-history = st.session_state.rooms[active_room]
-
-st.title("💬 A Talk About")
-st.caption("A dedicated space for real inquiry, honest thought, and deep dialogue.")
 st.subheader(f"Room: #{active_room}")
 
-# Welcome message for empty room
-if len(history) == 0:
-    st.chat_message("assistant").write(
-        f"Hey {user_name}, {ai_title} here! Welcome to your new session on **#{active_room}**. What's on your mind right now? Let's talk about it."
-    )
+# Configure Gemini API
+if api_key:
+    genai.configure(api_key=api_key)
+    
+    # Initialize assistant welcome message if empty
+    if not st.session_state.rooms[active_room]:
+        st.session_state.rooms[active_room].append({
+            "role": "assistant",
+            "content": f"Hey {user_name}, {ai_title} here! Welcome to your session on **#{active_room}**. Tap the microphone below to speak or type a message. Let's talk about it."
+        })
+
+    # Display chat messages for active room
+    for msg in st.session_state.rooms[active_room]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Model configuration
+    model_name = "gemini-1.5-flash"
+
+    st.markdown("---")
+    st.markdown(f"### 💬 Talk with {ai_title}")
+
+    # --- VOICE INPUT WIDGET ---
+    audio_value = st.audio_input(f"Tap to record your voice message to {ai_title}")
+
+    if audio_value:
+        st.audio(audio_value)
+        with st.spinner(f"{ai_title} is listening..."):
+            try:
+                audio_bytes = audio_value.read()
+                model = genai.GenerativeModel(model_name)
+                
+                response = model.generate_content([
+                    f"You are {ai_title}, a grounded, engaging personal AI talking to {user_name}. Respond naturally to this voice input:",
+                    {"mime_type": "audio/wav", "data": audio_bytes}
+                ])
+                
+                ai_text = response.text
+                st.session_state.rooms[active_room].append({"role": "user", "content": "🎙️ *(Spoken Voice Message)*"})
+                st.session_state.rooms[active_room].append({"role": "assistant", "content": ai_text})
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error processing audio: {e}")
+
+    # --- TEXT INPUT FALLBACK ---
+    if text_input := st.chat_input(f"Let's talk about it, {user_name}..."):
+        st.session_state.rooms[active_room].append({"role": "user", "content": text_input})
+        with st.spinner(f"{ai_title} is thinking..."):
+            try:
+                model = genai.GenerativeModel(model_name)
+                history = [
+                    {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
+                    for m in st.session_state.rooms[active_room][:-1]
+                ]
+                chat = model.start_chat(history=history)
+                res = chat.send_message(text_input)
+                st.session_state.rooms[active_room].append({"role": "assistant", "content": res.text})
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
 else:
-    with st.expander("💬 Need a 10-second recap of where we left off?"):
-        st.write(f"We have {len(history)} messages saved in this thread.")
-
-# Display existing chat history
-for message in history:
-    role = "user" if message["role"] == "user" else "assistant"
-    st.chat_message(role).write(message["content"])
-
-# Chat input and response handling
-if user_input := st.chat_input(f"Let's talk about it, {user_name}..."):
-    st.chat_message("user").write(user_input)
-    st.session_state.rooms[active_room].append({"role": "user", "content": user_input})
-
-    try:
-        model = genai.GenerativeModel(
-            model_name="gemini-3.8-flash",
-            system_instruction=f"{MASTER_SYSTEM_PROMPT}\n\nThe user's name is {user_name}. You are {ai_title}."
-        )
-
-        formatted_contents = [{"role": m["role"], "parts": [m["content"]]} for m in st.session_state.rooms[active_room]]
-
-        with st.spinner("Thinking..."):
-            response = model.generate_content(formatted_contents)
-            bot_reply = response.text
-
-        st.chat_message("assistant").write(bot_reply)
-        st.session_state.rooms[active_room].append({"role": "model", "content": bot_reply})
-
-    except Exception as e:
-        st.error(f"Error communicating with AI model: {e}")
+    st.info("Please enter your Gemini API key in the sidebar or save it in Streamlit Secrets to begin.")
